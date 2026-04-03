@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Union
 
 
-DEFAULT_DB_PATH = Path("factlog.db")
+DEFAULT_DB_PATH = Path(os.getenv("FACTLOG_DB_PATH", "factlog.db"))
 
 
 SCHEMA_STATEMENTS = (

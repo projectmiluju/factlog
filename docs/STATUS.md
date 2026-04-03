@@ -17,8 +17,10 @@
 - `POST /api/actions`, `GET /api/dashboard/summary`, `GET /api/validation/summary` 추가
 - Vitest + Testing Library 기반 UI 상태 테스트 3개 추가
 - QA 반려 후 `ResizeObserver` mock을 넣어 프론트 테스트 환경 복구
-- 현재 자동 검증: `pytest 33개`, `vitest 3개`, `vite build` 통과
-- `#1` 이슈용 PR 생성: `feat: NASA C-MAPSS 검증 파이프라인 추가 (#1)`
+- Playwright 기반 브라우저 E2E 1개 추가
+- `FACTLOG_DB_PATH` 기반 E2E 전용 SQLite 경로 분리
+- 발표용 검증 요약 산출물 `artifacts/validation/factlog_validation_summary.{json,md}` 생성
+- 현재 자동 검증: `pytest 33개`, `vitest 3개`, `playwright 1개`, `vite build` 통과
 
 ## 알려진 이슈
 | 이슈 | 심각도 | 상태 |
@@ -26,18 +28,16 @@
 | AI허브 데이터는 아직 로컬 적재 전이라 보조 검증만 계획 상태 | 중간 | Open |
 | `OPENAI_API_KEY`용 `.env.example` 파일은 아직 없음 | 낮음 | Planned |
 | OpenAI 설명 생성 실패 사유를 구조화 로그로 남기지 않는다 | 낮음 | Open |
-| 브라우저 기반 E2E는 아직 없어 실제 사용자 플로우를 Playwright로 검증하지 못했다 | 중간 | Planned |
 | 프론트 번들 크기가 `538.63 kB`로 경고 임계값을 넘는다 | 낮음 | Open |
 
 ## 기술 부채
 | 항목 | 등록일 | 예상 작업량 |
 |------|-------|-----------|
 | NASA 외 데이터셋 검증 자동화 미구현 | 2026-04-03 | M |
-| validation 요약을 API로 노출하는 계층 미구현 | 2026-04-03 | M |
 | 업로드 스키마와 분석 요청 스키마 통합 미완료 | 2026-04-03 | S |
 | SQLite 마이그레이션이 수동 `ALTER TABLE` 수준이라 버전 관리 체계가 없음 | 2026-04-04 | S |
 | 프론트 번들 code splitting 미적용 | 2026-04-04 | S |
 
 ## 다음 계획
-- [ ] `#4` 브랜치 커밋/PR 정리
-- [ ] `#5` E2E 시나리오 및 검증 결과 정리
+- [ ] `#5` 브랜치 커밋/PR 정리
+- [ ] AIHub 보조 검증 데이터 적재 및 비교 수치 추가
