@@ -22,6 +22,7 @@ pip install -e .[dev]
 ### 실행
 ```bash
 python scripts/run_validation.py --data-dir data/raw/nasa-cmapss --subset FD001
+uvicorn factlog_ml.api:app --reload
 ```
 
 ## 프로젝트 구조
@@ -34,6 +35,10 @@ factlog/
 │   └── STATUS.md
 ├── scripts/
 ├── src/factlog_ml/
+│   ├── api.py
+│   ├── api_schemas.py
+│   ├── db.py
+│   └── uploads.py
 ├── tests/
 └── artifacts/validation/
 ```
@@ -56,5 +61,7 @@ factlog/
 ## 스크립트
 - `python scripts/run_validation.py --data-dir data/raw/nasa-cmapss --subset FD001`
   NASA C-MAPSS 검증 요약 생성
+- `uvicorn factlog_ml.api:app --reload`
+  센서 수기 입력 및 CSV 업로드 API 실행
 - `pytest -q`
-  검증 파이프라인 테스트 실행
+  검증 파이프라인 및 입력 API 테스트 실행
