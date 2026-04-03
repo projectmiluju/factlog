@@ -1,12 +1,15 @@
-"""FastAPI application for sensor intake."""
+"""FastAPI application for sensor intake and analysis."""
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Dict, Union
 
 from fastapi import FastAPI, File, HTTPException, UploadFile, status
 
+from .analysis import MODEL_VERSION, build_analysis
+from .analysis_schemas import AnalysisDetailResponse, AnalysisRequest, AnalysisResponse, SimilarCaseItem, SimilarCasesResponse
 from .api_schemas import (
     CsvUploadErrorResponse,
     CsvUploadResponse,
@@ -14,17 +17,37 @@ from .api_schemas import (
     ManualIntakeResponse,
     ValidationErrorItem,
 )
-from .db import DEFAULT_DB_PATH, Database, SensorRecordCreate, SensorRepository
+from .db import AnalysisRepository, AnalysisResultCreate, DEFAULT_DB_PATH, Database, SensorRecordCreate, SensorRepository
 from .uploads import parse_sensor_csv, validate_file_metadata
+
+
+def _load_similar_cases_payload(raw_payload: object) -> list[SimilarCaseItem]:
+    if not raw_payload:
+        return []
+
+    similar_cases = json.loads(str(raw_payload))
+    return [
+        SimilarCaseItem(
+            analysis_result_id=int(case["analysis_result_id"]),
+            sensor_record_id=int(case["sensor_record_id"]),
+            equipment_name=str(case["equipment_name"]),
+            timestamp=str(case["timestamp"]),
+            anomaly_score=float(case["anomaly_score"]),
+            similarity_score=float(case["similarity_score"]),
+        )
+        for case in similar_cases
+    ]
 
 
 def create_app(db_path: Union[Path, str] = DEFAULT_DB_PATH) -> FastAPI:
     database = Database(db_path=db_path)
     database.initialize()
     repository = SensorRepository(database=database)
+    analysis_repository = AnalysisRepository(database=database)
 
     app = FastAPI(title="FactLog API", version="0.1.0")
     app.state.repository = repository
+    app.state.analysis_repository = analysis_repository
 
     @app.get("/health")
     def health() -> Dict[str, str]:
@@ -75,6 +98,83 @@ def create_app(db_path: Union[Path, str] = DEFAULT_DB_PATH) -> FastAPI:
             status="imported",
             imported_count=len(record_ids),
             record_ids=record_ids,
+        )
+
+    @app.post("/api/analysis", response_model=AnalysisResponse, status_code=status.HTTP_201_CREATED)
+    def create_analysis(payload: AnalysisRequest) -> AnalysisResponse:
+        sensor_record = repository.get_sensor_record(payload.sensor_record_id)
+        if sensor_record is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="sensor_record를 찾을 수 없습니다.")
+
+        previous_cases = analysis_repository.list_previous_analysis_cases(payload.sensor_record_id)
+        computation = build_analysis(dict(sensor_record), [dict(case) for case in previous_cases])
+        analysis_result_id = analysis_repository.create_analysis_result(
+            AnalysisResultCreate(
+                sensor_record_id=payload.sensor_record_id,
+                anomaly_score=computation.anomaly_score,
+                is_anomaly=computation.is_anomaly,
+                model_version=MODEL_VERSION,
+                explanation_text=computation.fallback_explanation,
+                explanation_source=computation.explanation_source,
+                similar_cases_payload=[
+                    {
+                        "analysis_result_id": case.analysis_result_id,
+                        "sensor_record_id": case.sensor_record_id,
+                        "equipment_name": case.equipment_name,
+                        "timestamp": case.timestamp,
+                        "anomaly_score": case.anomaly_score,
+                        "similarity_score": case.similarity_score,
+                    }
+                    for case in computation.similar_cases
+                ],
+            )
+        )
+        return AnalysisResponse(
+            analysis_result_id=analysis_result_id,
+            sensor_record_id=payload.sensor_record_id,
+            anomaly_score=computation.anomaly_score,
+            is_anomaly=computation.is_anomaly,
+            explanation_text=computation.fallback_explanation,
+            explanation_source=computation.explanation_source,
+            similar_cases=[
+                SimilarCaseItem(
+                    analysis_result_id=case.analysis_result_id,
+                    sensor_record_id=case.sensor_record_id,
+                    equipment_name=case.equipment_name,
+                    timestamp=case.timestamp,
+                    anomaly_score=case.anomaly_score,
+                    similarity_score=case.similarity_score,
+                )
+                for case in computation.similar_cases
+            ],
+        )
+
+    @app.get("/api/analysis/{analysis_result_id}", response_model=AnalysisDetailResponse)
+    def get_analysis_result(analysis_result_id: int) -> AnalysisDetailResponse:
+        result = analysis_repository.get_analysis_result(analysis_result_id)
+        if result is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="analysis_result를 찾을 수 없습니다.")
+
+        return AnalysisDetailResponse(
+            analysis_result_id=int(result["id"]),
+            sensor_record_id=int(result["sensor_record_id"]),
+            anomaly_score=float(result["anomaly_score"]),
+            is_anomaly=bool(result["is_anomaly"]),
+            explanation_text=str(result["explanation_text"]),
+            explanation_source=str(result["explanation_source"] or "fallback"),
+            model_version=str(result["model_version"]),
+            similar_cases=_load_similar_cases_payload(result["similar_cases_payload"]),
+        )
+
+    @app.get("/api/similar-cases/{analysis_result_id}", response_model=SimilarCasesResponse)
+    def get_similar_cases(analysis_result_id: int) -> SimilarCasesResponse:
+        result = analysis_repository.get_analysis_result(analysis_result_id)
+        if result is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="analysis_result를 찾을 수 없습니다.")
+
+        return SimilarCasesResponse(
+            analysis_result_id=analysis_result_id,
+            similar_cases=_load_similar_cases_payload(result["similar_cases_payload"]),
         )
 
     return app
