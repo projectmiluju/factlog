@@ -14,6 +14,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .[dev]
 cd web && npm install
+cd web && npx playwright install chromium
 ```
 
 ### 환경변수 설정
@@ -25,6 +26,7 @@ cd web && npm install
 ### 실행
 ```bash
 python scripts/run_validation.py --data-dir data/raw/nasa-cmapss --subset FD001
+python scripts/export_validation_summary.py
 uvicorn factlog_ml.api:app --reload
 cd web && npm run dev
 ```
@@ -38,6 +40,8 @@ factlog/
 │   ├── devlog/
 │   └── STATUS.md
 ├── scripts/
+│   ├── export_validation_summary.py
+│   └── run_validation.py
 ├── src/factlog_ml/
 │   ├── api.py
 │   ├── analysis.py
@@ -49,6 +53,9 @@ factlog/
 │   └── uploads.py
 ├── tests/
 ├── web/
+│   ├── e2e/
+│   ├── playwright.config.ts
+│   └── src/
 └── artifacts/validation/
 ```
 
@@ -70,6 +77,8 @@ factlog/
 ## 스크립트
 - `python scripts/run_validation.py --data-dir data/raw/nasa-cmapss --subset FD001`
   NASA C-MAPSS 검증 요약 생성
+- `python scripts/export_validation_summary.py`
+  발표용 검증 요약 JSON/Markdown 산출물 생성
 - `uvicorn factlog_ml.api:app --reload`
   센서 입력, CSV 업로드, 분석 결과, 조치 저장, 대시보드 API 실행
 - `pytest -q`
@@ -78,5 +87,7 @@ factlog/
   FactLog 웹 UI 개발 서버 실행
 - `cd web && npm run test`
   웹 UI 상호작용 테스트 실행
+- `cd web && npm run test:e2e`
+  Playwright 기반 브라우저 E2E 실행
 - `cd web && npm run build`
   웹 UI 프로덕션 빌드 검증
