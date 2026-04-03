@@ -373,3 +373,102 @@ class AnalysisRepository:
                 (sensor_record_id,),
             ).fetchall()
             return rows
+
+    def list_analysis_results(self, limit: int = 20, page: int = 1) -> List[sqlite3.Row]:
+        offset = max(page - 1, 0) * limit
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT
+                    analysis_result.id AS analysis_result_id,
+                    analysis_result.sensor_record_id,
+                    analysis_result.anomaly_score,
+                    analysis_result.is_anomaly,
+                    analysis_result.explanation_source,
+                    analysis_result.created_at,
+                    sensor_record.timestamp,
+                    equipment.name AS equipment_name,
+                    EXISTS (
+                        SELECT 1
+                        FROM action_log
+                        WHERE action_log.analysis_result_id = analysis_result.id
+                          AND action_log.deleted_at IS NULL
+                    ) AS action_logged
+                FROM analysis_result
+                INNER JOIN sensor_record ON sensor_record.id = analysis_result.sensor_record_id
+                INNER JOIN equipment ON equipment.id = sensor_record.equipment_id
+                WHERE analysis_result.deleted_at IS NULL
+                ORDER BY analysis_result.id DESC
+                LIMIT ? OFFSET ?
+                """,
+                (limit, offset),
+            ).fetchall()
+            return rows
+
+    def count_analysis_results(self) -> int:
+        with self.database.connect() as connection:
+            row = connection.execute(
+                """
+                SELECT COUNT(*) AS total_analyses
+                FROM analysis_result
+                WHERE deleted_at IS NULL
+                """
+            ).fetchone()
+            return int(row["total_analyses"]) if row is not None else 0
+
+    def count_anomalies(self) -> int:
+        with self.database.connect() as connection:
+            row = connection.execute(
+                """
+                SELECT COUNT(*) AS anomaly_count
+                FROM analysis_result
+                WHERE deleted_at IS NULL AND is_anomaly = 1
+                """
+            ).fetchone()
+            return int(row["anomaly_count"]) if row is not None else 0
+
+
+@dataclass(frozen=True)
+class ActionLogCreate:
+    analysis_result_id: int
+    action_taken: str
+    operator_name: str
+    result_note: str
+
+
+class ActionRepository:
+    def __init__(self, database: Database) -> None:
+        self.database = database
+
+    def create_action_log(self, action_log: ActionLogCreate) -> int:
+        with self.database.connect() as connection:
+            cursor = connection.execute(
+                """
+                INSERT INTO action_log (
+                    analysis_result_id,
+                    action_taken,
+                    operator_name,
+                    result_note
+                )
+                VALUES (?, ?, ?, ?)
+                """,
+                (
+                    action_log.analysis_result_id,
+                    action_log.action_taken,
+                    action_log.operator_name,
+                    action_log.result_note,
+                ),
+            )
+            connection.commit()
+            return int(cursor.lastrowid)
+
+    def count_action_logs(self) -> int:
+        with self.database.connect() as connection:
+            row = connection.execute(
+                """
+                SELECT COUNT(*) AS total_actions
+                FROM action_log
+                WHERE deleted_at IS NULL
+                """
+            ).fetchone()
+            return int(row["total_actions"]) if row is not None else 0
