@@ -6,7 +6,7 @@ import json
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Union
+from typing import Dict, Iterable, List, Optional, Union
 
 
 DEFAULT_DB_PATH = Path("factlog.db")
@@ -46,7 +46,9 @@ SCHEMA_STATEMENTS = (
         is_anomaly INTEGER,
         model_version TEXT,
         explanation_text TEXT,
+        explanation_source TEXT,
         similar_case_ids TEXT,
+        similar_cases_payload TEXT,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         deleted_at TEXT,
         FOREIGN KEY (sensor_record_id) REFERENCES sensor_record (id)
@@ -111,7 +113,28 @@ class Database:
         with self.connect() as connection:
             for statement in SCHEMA_STATEMENTS:
                 connection.execute(statement)
+            self._migrate_analysis_result_table(connection)
             connection.commit()
+
+    def _migrate_analysis_result_table(self, connection: sqlite3.Connection) -> None:
+        existing_columns = {
+            str(row["name"])
+            for row in connection.execute("PRAGMA table_info(analysis_result)").fetchall()
+        }
+        if "explanation_source" not in existing_columns:
+            connection.execute(
+                """
+                ALTER TABLE analysis_result
+                ADD COLUMN explanation_source TEXT
+                """
+            )
+        if "similar_cases_payload" not in existing_columns:
+            connection.execute(
+                """
+                ALTER TABLE analysis_result
+                ADD COLUMN similar_cases_payload TEXT
+                """
+            )
 
 
 class SensorRepository:
@@ -215,6 +238,31 @@ class SensorRepository:
             ).fetchall()
             return rows
 
+    def get_sensor_record(self, sensor_record_id: int) -> Optional[sqlite3.Row]:
+        with self.database.connect() as connection:
+            row = connection.execute(
+                """
+                SELECT
+                    sensor_record.id,
+                    equipment.name AS equipment_name,
+                    equipment.type AS equipment_type,
+                    equipment.source_dataset AS source_dataset,
+                    sensor_record.timestamp,
+                    sensor_record.temperature,
+                    sensor_record.vibration,
+                    sensor_record.rpm,
+                    sensor_record.torque,
+                    sensor_record.tool_wear,
+                    sensor_record.raw_payload,
+                    sensor_record.deleted_at
+                FROM sensor_record
+                INNER JOIN equipment ON equipment.id = sensor_record.equipment_id
+                WHERE sensor_record.id = ?
+                """,
+                (sensor_record_id,),
+            ).fetchone()
+            return row
+
     def soft_delete_sensor_record(self, sensor_record_id: int) -> None:
         with self.database.connect() as connection:
             connection.execute(
@@ -226,3 +274,102 @@ class SensorRepository:
                 (sensor_record_id,),
             )
             connection.commit()
+
+
+@dataclass(frozen=True)
+class AnalysisResultCreate:
+    sensor_record_id: int
+    anomaly_score: float
+    is_anomaly: bool
+    model_version: str
+    explanation_text: str
+    explanation_source: str
+    similar_cases_payload: List[Dict[str, object]]
+
+
+class AnalysisRepository:
+    def __init__(self, database: Database) -> None:
+        self.database = database
+
+    def create_analysis_result(self, analysis_result: AnalysisResultCreate) -> int:
+        with self.database.connect() as connection:
+            cursor = connection.execute(
+                """
+                INSERT INTO analysis_result (
+                    sensor_record_id,
+                    anomaly_score,
+                    is_anomaly,
+                    model_version,
+                    explanation_text,
+                    explanation_source,
+                    similar_case_ids,
+                    similar_cases_payload
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    analysis_result.sensor_record_id,
+                    analysis_result.anomaly_score,
+                    int(analysis_result.is_anomaly),
+                    analysis_result.model_version,
+                    analysis_result.explanation_text,
+                    analysis_result.explanation_source,
+                    json.dumps(
+                        [
+                            int(case["analysis_result_id"])
+                            for case in analysis_result.similar_cases_payload
+                        ],
+                        ensure_ascii=False,
+                    ),
+                    json.dumps(analysis_result.similar_cases_payload, ensure_ascii=False),
+                ),
+            )
+            connection.commit()
+            return int(cursor.lastrowid)
+
+    def get_analysis_result(self, analysis_result_id: int) -> Optional[sqlite3.Row]:
+        with self.database.connect() as connection:
+            row = connection.execute(
+                """
+                SELECT
+                    analysis_result.id,
+                    analysis_result.sensor_record_id,
+                    analysis_result.anomaly_score,
+                    analysis_result.is_anomaly,
+                    analysis_result.model_version,
+                    analysis_result.explanation_text,
+                    analysis_result.explanation_source,
+                    analysis_result.similar_case_ids,
+                    analysis_result.similar_cases_payload,
+                    analysis_result.created_at
+                FROM analysis_result
+                WHERE analysis_result.id = ?
+                """,
+                (analysis_result_id,),
+            ).fetchone()
+            return row
+
+    def list_previous_analysis_cases(self, sensor_record_id: int) -> List[sqlite3.Row]:
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT
+                    analysis_result.id AS analysis_result_id,
+                    sensor_record.id AS sensor_record_id,
+                    equipment.name AS equipment_name,
+                    sensor_record.timestamp,
+                    sensor_record.temperature,
+                    sensor_record.vibration,
+                    sensor_record.rpm,
+                    sensor_record.torque,
+                    sensor_record.tool_wear,
+                    analysis_result.anomaly_score
+                FROM analysis_result
+                INNER JOIN sensor_record ON sensor_record.id = analysis_result.sensor_record_id
+                INNER JOIN equipment ON equipment.id = sensor_record.equipment_id
+                WHERE analysis_result.sensor_record_id != ?
+                ORDER BY analysis_result.id DESC
+                """,
+                (sensor_record_id,),
+            ).fetchall()
+            return rows
