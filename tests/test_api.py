@@ -271,3 +271,48 @@ def test_similar_cases_endpoint_returns_404_for_missing_analysis_result(tmp_path
     response = client.get("/api/similar-cases/999")
 
     assert response.status_code == 404
+
+
+def test_action_log_endpoint_saves_action_for_analysis_result(tmp_path: Path) -> None:
+    app = create_app(tmp_path / "factlog.db")
+    client = TestClient(app)
+    record_id = _seed_sensor_record(client)
+    analysis_response = client.post("/api/analysis", json={"sensor_record_id": record_id})
+
+    response = client.post(
+        "/api/actions",
+        json={
+            "analysis_result_id": analysis_response.json()["analysis_result_id"],
+            "action_taken": "냉각계 점검",
+            "operator_name": "현장 담당자",
+            "result_note": "회전수 보정 후 재측정 예정",
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.json()["status"] == "saved"
+
+
+def test_dashboard_summary_endpoint_includes_recent_analysis_and_validation_metrics(tmp_path: Path) -> None:
+    app = create_app(tmp_path / "factlog.db")
+    client = TestClient(app)
+    record_id = _seed_sensor_record(client)
+    client.post("/api/analysis", json={"sensor_record_id": record_id})
+
+    response = client.get("/api/dashboard/summary")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total_analyses"] >= 1
+    assert len(payload["recent_analyses"]) >= 1
+    assert len(payload["validation_datasets"]) >= 1
+
+
+def test_validation_summary_endpoint_returns_nasa_metrics(tmp_path: Path) -> None:
+    app = create_app(tmp_path / "factlog.db")
+    client = TestClient(app)
+
+    response = client.get("/api/validation/summary")
+
+    assert response.status_code == 200
+    assert response.json()["datasets"][0]["dataset_name"] == "NASA C-MAPSS"
