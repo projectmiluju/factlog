@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import List
 
 import pytest
 
 pytest.importorskip("sklearn", reason="scikit-learn is required for validation")
 from factlog_ml.validate import run_validation
 
-def _write_rows(path: Path, rows: list[list[float]]) -> None:
+def _write_rows(path: Path, rows: List[List[float]]) -> None:
     path.write_text(
         "\n".join(" ".join(str(value) for value in row) for row in rows) + "\n",
         encoding="utf-8",

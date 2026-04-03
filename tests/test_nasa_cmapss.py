@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import List
 
 import pytest
 
@@ -11,7 +12,7 @@ from factlog_ml.constants import FEATURE_COLUMNS
 from factlog_ml.nasa_cmapss import load_cmapss_splits
 
 
-def _write_rows(path: Path, rows: list[list[float]]) -> None:
+def _write_rows(path: Path, rows: List[List[float]]) -> None:
     path.write_text(
         "\n".join(" ".join(str(value) for value in row) for row in rows) + "\n",
         encoding="utf-8",
