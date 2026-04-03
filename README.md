@@ -13,6 +13,7 @@
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .[dev]
+cd web && npm install
 ```
 
 ### 환경변수 설정
@@ -25,6 +26,7 @@ pip install -e .[dev]
 ```bash
 python scripts/run_validation.py --data-dir data/raw/nasa-cmapss --subset FD001
 uvicorn factlog_ml.api:app --reload
+cd web && npm run dev
 ```
 
 ## 프로젝트 구조
@@ -40,10 +42,13 @@ factlog/
 │   ├── api.py
 │   ├── analysis.py
 │   ├── analysis_schemas.py
+│   ├── action_schemas.py
 │   ├── api_schemas.py
+│   ├── dashboard_schemas.py
 │   ├── db.py
 │   └── uploads.py
 ├── tests/
+├── web/
 └── artifacts/validation/
 ```
 
@@ -66,6 +71,12 @@ factlog/
 - `python scripts/run_validation.py --data-dir data/raw/nasa-cmapss --subset FD001`
   NASA C-MAPSS 검증 요약 생성
 - `uvicorn factlog_ml.api:app --reload`
-  센서 입력, CSV 업로드, 분석 결과 API 실행
+  센서 입력, CSV 업로드, 분석 결과, 조치 저장, 대시보드 API 실행
 - `pytest -q`
-  검증 파이프라인, 입력 API, 분석 API 테스트 실행
+  검증 파이프라인과 백엔드 API 테스트 실행
+- `cd web && npm run dev`
+  FactLog 웹 UI 개발 서버 실행
+- `cd web && npm run test`
+  웹 UI 상호작용 테스트 실행
+- `cd web && npm run build`
+  웹 UI 프로덕션 빌드 검증
