@@ -1,0 +1,18 @@
+{
+  "skills": {
+    "skillVersions": {
+      "spec": "0.0.0",
+      "ui": "1.0.0",
+      "build": "0.0.0",
+      "qa": "1.0.0",
+      "ship": "0.0.0",
+      "ops": "1.0.0",
+      "docs": "1.0.0"
+    },
+    "agents": [
+      "codex"
+    ],
+    "installedAt": "2026-04-02T10:44:05.007Z",
+    "miluVersion": "0.1.1"
+  }
+}

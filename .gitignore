@@ -1,0 +1,48 @@
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+.codex/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+env/
+
+# Node / Frontend
+node_modules/
+dist/
+build/
+.next/
+coverage/
+*.tsbuildinfo
+!.agents/skills/build/
+!.agents/skills/build/**
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Local databases and logs
+*.db
+*.sqlite
+*.sqlite3
+*.log
+
+# Runtime / temp artifacts
+tmp/
+temp/
+.tmp/
+
+# Local agent runtime config
+.claude/mcp.json
