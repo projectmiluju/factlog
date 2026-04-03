@@ -17,6 +17,7 @@ htmlcov/
 .venv/
 venv/
 env/
+*.egg-info/
 
 # Node / Frontend
 node_modules/
@@ -38,6 +39,11 @@ coverage/
 *.sqlite
 *.sqlite3
 *.log
+
+# Local datasets and generated validation outputs
+data/raw/
+data/processed/
+artifacts/validation/*.json
 
 # Runtime / temp artifacts
 tmp/
